@@ -21,8 +21,9 @@ Version 0.01
 our $VERSION = '0.01';
 
 my $NODE_IN_ROTATION_FILE        = 'netscaler_test_object';
-my $CLUSTER_OUT_OF_ROTATION_FILE = 'akamai_test_object';
-# /app/shared/conf/fail_cluster - if it's there then the cluster is out
+#my $CLUSTER_OUT_OF_ROTATION_FILE = 'akamai_test_object';
+my $CLUSTER_OUT_OF_ROTATION_FILE = '/app/shared/conf/fail_cluster';
+my $SSH_USER                     = 'tmweb';
 
 =head1 SYNOPSIS
 
@@ -122,20 +123,24 @@ sub _is_cluster_in_rotation {
     my $self = shift;
     my $node = shift;
 
-    my $node_in = 0;
+    my $cluster_in = 0;
     
-    my $end_point = $self->build_base_template($node->template_vars) . '/' . $CLUSTER_OUT_OF_ROTATION_FILE;
+    my $server_name = $self->build_base_template($node->template_vars);
 
-    my $ua = LWP::UserAgent->new();
-    $ua->timeout($self->check_timeout);
-    $ua->agent(__PACKAGE__ . '/' . $VERSION);
+    my $ret = _ssh($SSH_USER, $server_name, "stat $CLUSTER_OUT_OF_ROTATION_FILE");
 
-    my $req = HTTP::Request->new(GET => $end_point);
-    my $res = $ua->request($req);
+    $cluster_in = 1 unless $ret =~ /No such file or directory/;
 
-    $node_in = 1 unless $res->is_success;
+    return $cluster_in;
+}
 
-    return $node_in;
+# This is here to make testing possible using mocks
+sub _ssh {
+    my $user   = shift || croak("No user provided to _ssh");
+    my $server = shift || croak("No server provided to _ssh");
+    my $cmd    = shift || croak("No cmd provided to _ssh");
+
+    return `ssh -A -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $user\@$server "$cmd"`;
 }
 
 =head1 AUTHOR
